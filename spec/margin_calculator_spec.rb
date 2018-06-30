@@ -1,7 +1,7 @@
-require 'rails_helper'
+require 'margin_calculator'
 
-RSpec.describe Pricing::Margins::Calculators do
-  let(:margin_values_hash) do
+RSpec.describe Calculator do
+  let(:values) do
     {
       free_shipping_threshold: 150,
       shipping_revenue: 6.77,
@@ -23,17 +23,131 @@ RSpec.describe Pricing::Margins::Calculators do
     }
   end
 
+  let(:negative_cm0values) do
+    Cm0Values.new(
+      values[:shipping_revenue],
+      values[:net_retail],
+      1.0
+    )
+  end
+
+  let(:cm0values) do
+    Cm0Values.new(
+      values[:shipping_revenue],
+      values[:net_retail],
+      values[:wholesale_price]
+    )
+  end
+
+  let(:cm1values) do
+    Cm1Values.new(
+      cm0values,
+      values[:return_rate],
+      values[:return_shipping],
+      values[:return_fulfillment],
+      values[:cancellation_rate],
+      values[:depreciation]
+    )
+  end
+
+  let(:negative_cm1values) do
+    Cm1Values.new(
+      negative_cm0values,
+      values[:return_rate],
+      values[:return_shipping],
+      values[:return_fulfillment],
+      values[:cancellation_rate],
+      values[:depreciation]
+    )
+  end
+
+  let(:cm2values) do
+    Cm2Values.new(
+      cm1values,
+      values[:outbound_shipping],
+      values[:inbound_shipping],
+      values[:packaging],
+      values[:fulfillment],
+      values[:payment_cost],
+      values[:refunds],
+      values[:retail_price]
+    )
+  end
+
+  let(:negative_cm2values) do
+    Cm2Values.new(
+      negative_cm1values,
+      values[:outbound_shipping],
+      values[:inbound_shipping],
+      values[:packaging],
+      values[:fulfillment],
+      values[:payment_cost],
+      values[:refunds],
+      values[:retail_price]
+    )
+  end
+
   context 'when retail_price is less than 150' do
     it 'calculates cm0' do
-      expect(described_class.cm0(margin_values_hash)).to eq(amount: 13.06, percent: 91.39)
+      margin_calculation = described_class.cm0(cm0values)
+      expect(margin_calculation.relative.round(2)).to eq(91.39)
+      expect(margin_calculation.absolute.round(2)).to eq(13.06)
+
     end
 
     it 'calculates cm1' do
-      expect(described_class.cm1(margin_values_hash)).to eq(amount: 12.44, percent: 87.07)
+      margin_calculation = described_class.cm1(cm1values)
+      expect(margin_calculation.relative.round(2)).to eq(87.07)
+      expect(margin_calculation.absolute.round(2)).to eq(12.44)
     end
 
     it 'calculates cm2' do
-      expect(described_class.cm2(margin_values_hash)).to eq(amount: 1.84, percent: 12.89)
+      margin_calculation = described_class.cm2(cm2values)
+      expect(margin_calculation.relative.round(2)).to eq(12.89)
+      expect(margin_calculation.absolute.round(2)).to eq(1.84)
+    end
+
+    context '#lowest_possible_price' do
+      it 'calculates the lowest possible price' do
+        price = described_class.lowest_possible_price(cm2values, 12.00, 'cm2')
+        expect(price.round(2)).to eq(16.82)
+      end
+      it 'is able to return negative values' do
+        price = described_class.lowest_possible_price(negative_cm2values, 45.00, 'cm0')
+        expect(price.round(2)).to eq(-12.48)
+      end
+      it 'is really fast!' do
+        start = Time.now
+        2000.times do
+          cm0values = Cm0Values.new(
+            values[:shipping_revenue],
+            values[:net_retail],
+            values[:wholesale_price]
+          )
+          cm1values = Cm1Values.new(
+            cm0values,
+            values[:return_rate],
+            values[:return_shipping],
+            values[:return_fulfillment],
+            values[:cancellation_rate],
+            values[:depreciation]
+          )
+          vals = Cm2Values.new(
+            cm1values,
+            values[:outbound_shipping],
+            values[:inbound_shipping],
+            values[:packaging],
+            values[:fulfillment],
+            values[:payment_cost],
+            values[:refunds],
+            values[:retail_price]
+          )
+          price = described_class.lowest_possible_price(vals, 12.00, 'cm2')
+          expect(price.round(2)).to eq(16.82)
+        end
+        finish = Time.now
+        puts finish - start
+      end
     end
   end
 end

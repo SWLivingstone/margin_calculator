@@ -4,7 +4,7 @@ Gem::Specification.new do |s|
   s.name         = 'margin_calculator'
   s.version      = '1.0.0'
   s.authors      = ['Ruby Developer']
-  s.summary      = "A Helix project"
+  s.summary      = 'A Helix project'
   s.files        = Dir['{lib/**/*,[A-Z]*}']
 
   s.platform     = Gem::Platform::RUBY
